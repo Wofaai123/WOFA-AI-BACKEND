@@ -10,34 +10,18 @@ const app = express();
    GLOBAL MIDDLEWARE
    ========================= */
 
-// CORS (open for development)
+// CORS
 app.use(cors());
 
 // Parse JSON & large payloads (for images)
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use("/api/progress", require("./routes/progress"));
-app.use("/api/quizzes", require("./routes/quizzes"));
-app.use("/api/progress", require("./routes/progress"));
-app.use("/api/debug", require("./routes/debug"));
 
 // Simple request logger (helps debugging)
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);
   next();
 });
-
-/* =========================
-   DATABASE CONNECTION
-   ========================= */
-(async () => {
-  try {
-    await connectDB();
-  } catch (err) {
-    console.error("❌ Failed to start server due to DB error");
-    process.exit(1);
-  }
-})();
 
 /* =========================
    HEALTH CHECK
@@ -59,14 +43,14 @@ app.use("/api/chat", require("./routes/chat"));
 app.use("/api/subjects", require("./routes/subjects"));
 app.use("/api/courses", require("./routes/courses"));
 app.use("/api/lessons", require("./routes/lessons"));
+app.use("/api/progress", require("./routes/progress"));
+// ⛔ quizzes/debug intentionally removed until needed
 
 /* =========================
    404 HANDLER
    ========================= */
 app.use((req, res) => {
-  res.status(404).json({
-    message: "Route not found"
-  });
+  res.status(404).json({ message: "Route not found" });
 });
 
 /* =========================
@@ -80,10 +64,17 @@ app.use((err, req, res, next) => {
 });
 
 /* =========================
-   SERVER START
+   START SERVER (AFTER DB)
    ========================= */
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 WOFA AI backend running on port ${PORT}`);
-});
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 WOFA AI backend running on port ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error("❌ Failed to connect to MongoDB", err);
+    process.exit(1);
+  });
