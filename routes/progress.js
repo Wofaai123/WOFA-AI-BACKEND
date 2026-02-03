@@ -1,22 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/authMiddleware");
-const { markComplete } = require("../controllers/progressController");
+const {
+  saveProgress,
+  getProgress
+} = require("../controllers/progressController");
 
-router.post("/complete", auth, markComplete);
+router.post("/", auth, saveProgress);
+router.get("/", auth, getProgress);
 
 module.exports = router;
-
-router.get("/summary", auth, async (req, res) => {
-  const userId = req.user.id;
-
-  const completed = await Progress.find({
-    user: userId,
-    completed: true
-  }).populate("lesson");
-
-  res.json({
-    completedLessons: completed.length,
-    lessons: completed
-  });
-});
