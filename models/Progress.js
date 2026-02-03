@@ -6,16 +6,20 @@ const ProgressSchema = new mongoose.Schema({
     ref: "User",
     required: true
   },
+
   lesson: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Lesson",
     required: true
   },
-  completed: {
-    type: Boolean,
-    default: false
+
+  status: {
+    type: String,
+    enum: ["started", "completed"],
+    default: "started"
   },
-  completedAt: {
+
+  updatedAt: {
     type: Date,
     default: Date.now
   }
