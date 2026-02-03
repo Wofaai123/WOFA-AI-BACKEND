@@ -1,141 +1,121 @@
-const Chat = require("../models/Chat");
-const { analyzeImage } = require("../services/visionService");
+const OpenAI = require("openai");
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 /* =========================
-   SUBJECT DETECTION
+   SMART PROMPT BUILDER
    ========================= */
-function detectSubject(question = "") {
-  const q = question.toLowerCase();
+function buildPrompt({ course, lesson, level, question, mode }) {
+  const baseContext = `
+You are WOFA AI, a world-class educational assistant.
+Audience level: ${level || "General"}
+Course: ${course || "General Education"}
+Lesson topic: ${lesson || "General Topic"}
+Language: Simple, clear, structured.
+Audience may include learners in low-bandwidth regions.
+`;
 
-  const SUBJECT_KEYWORDS = {
-    Mathematics: ["math", "equation", "solve", "algebra", "calculation"],
-    Physics: ["physics", "force", "energy", "motion", "velocity"],
-    Chemistry: ["chemistry", "reaction", "acid", "base", "compound"],
-    Biology: ["biology", "cell", "photosynthesis", "organism", "respiration"],
-    History: ["history"],
-    Geography: ["geography"],
-    "Computer Science": ["programming", "code", "javascript", "python"]
-  };
+  if (mode === "lesson") {
+    return `
+${baseContext}
 
-  for (const subject in SUBJECT_KEYWORDS) {
-    if (SUBJECT_KEYWORDS[subject].some(keyword => q.includes(keyword))) {
-      return subject;
-    }
+TASK:
+Teach the lesson "${lesson}".
+
+REQUIREMENTS:
+- Start with a clear introduction
+- Explain concepts step-by-step
+- Use simple examples
+- End with a short summary
+- Avoid unnecessary jargon
+`;
   }
 
-  return "General Education";
+  if (mode === "outline") {
+    return `
+${baseContext}
+
+TASK:
+Create a structured lesson outline for "${lesson}".
+
+FORMAT:
+1. Lesson Objectives
+2. Key Concepts
+3. Examples
+4. Practice Ideas
+5. Summary
+`;
+  }
+
+  if (mode === "quiz") {
+    return `
+${baseContext}
+
+TASK:
+Create a short quiz on "${lesson}".
+
+FORMAT:
+- 5 multiple choice questions
+- Provide correct answers at the end
+- Keep difficulty appropriate for ${level}
+`;
+  }
+
+  // Default: chat / Q&A
+  return `
+${baseContext}
+
+TASK:
+Answer the student's question clearly and helpfully.
+
+QUESTION:
+${question}
+`;
 }
 
 /* =========================
-   SUBJECT DIAGRAMS
-   ========================= */
-function getSubjectImages(subject) {
-  const DIAGRAMS = {
-    Biology: [
-      "https://upload.wikimedia.org/wikipedia/commons/3/3a/Photosynthesis_en.svg"
-    ],
-    Mathematics: [
-      "https://upload.wikimedia.org/wikipedia/commons/2/2c/Quadratic_formula.svg"
-    ],
-    Physics: [
-      "https://upload.wikimedia.org/wikipedia/commons/8/8f/Free_body_diagram.svg"
-    ],
-    Chemistry: [
-      "https://upload.wikimedia.org/wikipedia/commons/3/3b/Acid-base_reaction.svg"
-    ],
-    Geography: [
-      "https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg"
-    ]
-  };
-
-  return DIAGRAMS[subject] || [];
-}
-
-/* =========================
-   MAIN CHAT CONTROLLER
+   CHAT ENDPOINT
    ========================= */
 exports.chatAI = async (req, res) => {
   try {
-    const { question, image, lessonId } = req.body;
-
-    /* ---------- Validation ---------- */
-    if (!question || typeof question !== "string" || !question.trim()) {
-      return res.status(400).json({
-        message: "Question is required"
-      });
-    }
-
-    /* ---------- Subject Detection ---------- */
-    const subject = detectSubject(question);
-
-    /* ---------- Lesson Context ---------- */
-    let lessonContext = "";
-    if (lessonId) {
-      lessonContext = `
-Lesson context:
-The learner is currently studying a lesson.
-Answer strictly in relation to the lesson topic and objective.
-Use lesson concepts, examples, and explanations.
-`;
-    }
-
-    /* ---------- Vision AI ---------- */
-    let visualContext = "";
-    let chatType = "chat";
-
-    if (image) {
-      chatType = "image";
-      visualContext = await analyzeImage(image, question);
-    }
-
-    /* ---------- Diagrams ---------- */
-    const diagrams = image ? [] : getSubjectImages(subject);
-
-    /* ---------- Answer Construction ---------- */
-    const answer = `
-${subject}
-
-Question:
-${question}
-
-${lessonContext}
-
-${visualContext}
-
-Explanation:
-Answer the question clearly and directly.
-Focus on the core idea and explain it in simple, logical steps.
-
-Key takeaway:
-Summarize the most important point the learner should remember.
-
-You can ask for:
-- deeper explanation
-- step-by-step examples
-- diagrams or visual support
-`.trim();
-
-    /* ---------- Save Chat History ---------- */
-    await Chat.create({
+    const {
       question,
-      answer,
-      subject,
-      image: image || null,
-      type: chatType,
-      lesson: lessonId || null
+      course,
+      lesson,
+      level,
+      mode = "chat"
+    } = req.body;
+
+    const prompt = buildPrompt({
+      course,
+      lesson,
+      level,
+      question,
+      mode
     });
 
-    /* ---------- Response ---------- */
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini", // cheaper + fast
+      input: prompt,
+      max_output_tokens: 900
+    });
+
     res.json({
-      subject,
-      answer,
-      images: diagrams
+      answer: response.output_text,
+      meta: {
+        course,
+        lesson,
+        level,
+        mode
+      }
     });
 
   } catch (error) {
-    console.error("Chat AI error:", error);
+    console.error("WOFA AI chat error:", error);
     res.status(500).json({
-      message: "Server error"
+      message: "AI service unavailable. Try again."
     });
   }
 };

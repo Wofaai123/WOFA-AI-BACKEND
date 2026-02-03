@@ -1,35 +1,21 @@
-const mongoose = require("mongoose");
 const Progress = require("../models/Progress");
 
 /* =========================
-   MARK LESSON COMPLETE
+   SAVE / UPDATE PROGRESS
    ========================= */
-exports.markComplete = async (req, res) => {
+exports.saveProgress = async (req, res) => {
   try {
-    const { lessonId } = req.body;
     const userId = req.user.id;
+    const { lessonId, status = "completed" } = req.body;
 
-    // Validate lesson ID
-    if (!mongoose.Types.ObjectId.isValid(lessonId)) {
-      return res.status(400).json({
-        message: "Invalid lesson ID"
-      });
+    if (!lessonId) {
+      return res.status(400).json({ message: "Lesson ID required" });
     }
 
-    // Save or update progress (prevents duplicates)
     const progress = await Progress.findOneAndUpdate(
-      {
-        user: new mongoose.Types.ObjectId(userId),
-        lesson: new mongoose.Types.ObjectId(lessonId)
-      },
-      {
-        completed: true,
-        completedAt: new Date()
-      },
-      {
-        upsert: true,
-        new: true
-      }
+      { user: userId, lesson: lessonId },
+      { status, updatedAt: new Date() },
+      { upsert: true, new: true }
     );
 
     res.json({
@@ -37,10 +23,24 @@ exports.markComplete = async (req, res) => {
       progress
     });
 
-  } catch (error) {
-    console.error("Progress save error:", error);
-    res.status(500).json({
-      message: "Failed to save progress"
-    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save progress" });
+  }
+};
+
+/* =========================
+   GET USER PROGRESS
+   ========================= */
+exports.getProgress = async (req, res) => {
+  try {
+    const progress = await Progress.find({ user: req.user.id })
+      .populate("lesson", "title");
+
+    res.json(progress);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch progress" });
   }
 };
