@@ -11,60 +11,52 @@ const openai = new OpenAI({
    ========================= */
 router.post("/", async (req, res) => {
   try {
-    const {
-      question,
-      course,
-      lesson,
-      level = "general"
-    } = req.body;
+    const { question, course, lesson, level } = req.body;
 
-    // 🔑 AUTO-LESSON PROMPT
     const systemPrompt = `
-You are WOFA AI, an African-focused education assistant.
-Teach clearly, step-by-step, and simply.
+You are WOFA AI, a smart educational assistant.
+If course or lesson is provided, tailor your response.
+If not, answer normally like a general AI tutor.
 Avoid sexual or explicit content.
-Use examples relevant to Africa when possible.
+Use clear and simple explanations.
 `;
 
-    const lessonPrompt = `
-Course: ${course || "General Education"}
-Lesson: ${lesson || "General Topic"}
-Level: ${level}
+    let userPrompt = "";
 
-TASK:
-1. Explain the lesson clearly
-2. Give simple examples
-3. Provide 3 practice questions
-4. Give solutions
-5. Keep language simple
+    // 🎓 CONTEXT-AWARE MODE
+    if (course || lesson) {
+      userPrompt = `
+Course: ${course || "Not specified"}
+Lesson: ${lesson || "Not specified"}
+Level: ${level || "General"}
+
+Student request:
+${question || "Teach this topic clearly."}
 `;
-
-    const userPrompt = question
-      ? `Student Question: ${question}`
-      : "Generate a complete lesson.";
+    }
+    // 💬 FREE CHAT MODE
+    else {
+      userPrompt = question || "Teach me something useful.";
+    }
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: lessonPrompt },
         { role: "user", content: userPrompt }
       ],
       temperature: 0.4
     });
 
-    const answer = completion.choices[0].message.content;
-
     res.json({
-      answer
+      answer: completion.choices[0].message.content
     });
 
   } catch (err) {
-    console.error("AI error:", err);
-    res.status(500).json({
-      message: "AI lesson generation failed"
-    });
+    console.error(err);
+    res.status(500).json({ message: "AI request failed" });
   }
 });
+
 
 module.exports = router;
