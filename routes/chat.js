@@ -1,62 +1,68 @@
 const express = require("express");
-const router = express.Router();
 const OpenAI = require("openai");
+const router = express.Router();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+/* =========================
+   AI CHAT + AUTO LESSON
+   ========================= */
 router.post("/", async (req, res) => {
   try {
-    const { question, course, lesson } = req.body;
+    const {
+      question,
+      course,
+      lesson,
+      level = "general"
+    } = req.body;
 
-    if (!course || !lesson) {
-      return res.json({
-        answer:
-          "📘 Please select a course and lesson from the learning panel first."
-      });
-    }
-
-    /* =========================
-       SYSTEM PROMPT (CORE BRAIN)
-       ========================= */
+    // 🔑 AUTO-LESSON PROMPT
     const systemPrompt = `
-You are WOFA AI, an African-centered intelligent learning assistant.
+You are WOFA AI, an African-focused education assistant.
+Teach clearly, step-by-step, and simply.
+Avoid sexual or explicit content.
+Use examples relevant to Africa when possible.
+`;
 
-Teach the lesson clearly and patiently.
+    const lessonPrompt = `
+Course: ${course || "General Education"}
+Lesson: ${lesson || "General Topic"}
+Level: ${level}
 
-Course: ${course}
-Lesson: ${lesson}
-
-Rules:
-- Explain like a professional teacher
-- Use simple language first, then deeper explanation
-- Use African / global examples when helpful
-- Avoid sexual content
-- Be accurate, structured, and encouraging
-- End with 2 reflection questions
+TASK:
+1. Explain the lesson clearly
+2. Give simple examples
+3. Provide 3 practice questions
+4. Give solutions
+5. Keep language simple
 `;
 
     const userPrompt = question
-      ? question
-      : `Teach me this lesson from scratch.`;
+      ? `Student Question: ${question}`
+      : "Generate a complete lesson.";
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
+        { role: "user", content: lessonPrompt },
         { role: "user", content: userPrompt }
-      ]
+      ],
+      temperature: 0.4
     });
 
+    const answer = completion.choices[0].message.content;
+
     res.json({
-      answer: completion.choices[0].message.content
+      answer
     });
 
   } catch (err) {
-    console.error("Chat error:", err);
+    console.error("AI error:", err);
     res.status(500).json({
-      answer: "❌ WOFA AI could not generate this lesson right now."
+      message: "AI lesson generation failed"
     });
   }
 });
