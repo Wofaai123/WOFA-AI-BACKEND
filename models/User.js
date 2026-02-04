@@ -22,6 +22,11 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
+provider: {
+  type: String,
+  default: "local"
+}
+
 });
 
 module.exports = mongoose.model("User", UserSchema);
