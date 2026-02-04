@@ -1,15 +1,12 @@
-const express = require("express");
-const router = express.Router();
-const Course = require("../models/Course");
-
-// ✅ Get ALL courses
-router.get("/", async (req, res) => {
-  try {
-    const courses = await Course.find().populate("subject", "name");
-    res.json(courses);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch courses" });
-  }
+// routes/courses.js
+router.get("/", (req, res) => {
+  res.json([
+    { _id: "montessori", title: "Montessori (Early Childhood)" },
+    { _id: "primary", title: "Primary School" },
+    { _id: "jhs", title: "Junior High School" },
+    { _id: "shs", title: "Senior High School" },
+    { _id: "undergraduate", title: "University (Undergraduate)" },
+    { _id: "postgraduate", title: "Postgraduate / Masters" },
+    { _id: "phd", title: "PhD / Research" }
+  ]);
 });
-
-module.exports = router;
