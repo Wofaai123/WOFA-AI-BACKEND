@@ -6,71 +6,126 @@ const { OAuth2Client } = require("google-auth-library");
 const User = require("../models/User");
 
 const router = express.Router();
-const googleClient = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID
-);
 
 /* =========================
-   REGISTER (EMAIL / PASSWORD)
+   GOOGLE CLIENT
+   ========================= */
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+/* =========================
+   HELPER: SIGN JWT
+   ========================= */
+function signToken(userId) {
+  return jwt.sign(
+    { id: userId },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+/* =========================
+   REGISTER (EMAIL/PASSWORD)
+   POST /api/auth/register
    ========================= */
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    // Validate
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "All fields required" });
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, and password are required."
+      });
     }
 
-    const exists = await User.findOne({ email });
-    if (exists) {
-      return res.status(400).json({ message: "User already exists" });
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User already exists. Please login instead."
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await User.create({
+    const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
       provider: "local"
     });
 
-    res.json({ message: "User created" });
+    const token = signToken(newUser._id);
+
+    return res.status(201).json({
+      success: true,
+      message: "Registration successful.",
+      token,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email
+      }
+    });
 
   } catch (err) {
-    console.error("Register error:", err);
-    res.status(500).json({ message: "Registration failed" });
+    console.error("🔥 Register error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Registration failed."
+    });
   }
 });
 
 /* =========================
-   LOGIN (EMAIL / PASSWORD)
+   LOGIN (EMAIL/PASSWORD)
+   POST /api/auth/login
    ========================= */
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validate
     if (!email || !password) {
-      return res.status(400).json({ message: "All fields required" });
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required."
+      });
     }
 
     const user = await User.findOne({ email });
-    if (!user || user.provider === "google") {
-      return res.status(401).json({ message: "Invalid credentials" });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials."
+      });
     }
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) {
-      return res.status(401).json({ message: "Invalid credentials" });
+    // Prevent logging in locally if user is Google account
+    if (user.provider === "google") {
+      return res.status(401).json({
+        success: false,
+        message: "This account uses Google login. Please login with Google."
+      });
     }
 
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const isMatch = await bcrypt.compare(password, user.password);
 
-    res.json({
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials."
+      });
+    }
+
+    const token = signToken(user._id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful.",
       token,
       user: {
         id: user._id,
@@ -80,20 +135,27 @@ router.post("/login", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Login failed" });
+    console.error("🔥 Login error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Login failed."
+    });
   }
 });
 
 /* =========================
    GOOGLE LOGIN
+   POST /api/auth/google
    ========================= */
 router.post("/google", async (req, res) => {
   try {
     const { idToken } = req.body;
 
     if (!idToken) {
-      return res.status(400).json({ message: "Google token missing" });
+      return res.status(400).json({
+        success: false,
+        message: "Google token is missing."
+      });
     }
 
     const ticket = await googleClient.verifyIdToken({
@@ -102,28 +164,33 @@ router.post("/google", async (req, res) => {
     });
 
     const payload = ticket.getPayload();
+
+    if (!payload) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Google token."
+      });
+    }
+
     const { email, name } = payload;
 
     let user = await User.findOne({ email });
 
+    // Create user if not exists
     if (!user) {
-      const hashedPlaceholder = await bcrypt.hash("google-oauth", 10);
-
       user = await User.create({
         name,
         email,
-        password: hashedPlaceholder,
+        password: await bcrypt.hash("google-oauth-user", 10),
         provider: "google"
       });
     }
 
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = signToken(user._id);
 
-    res.json({
+    return res.status(200).json({
+      success: true,
+      message: "Google login successful.",
       token,
       user: {
         id: user._id,
@@ -133,8 +200,11 @@ router.post("/google", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Google auth error:", err);
-    res.status(401).json({ message: "Google authentication failed" });
+    console.error("🔥 Google auth error:", err);
+    return res.status(401).json({
+      success: false,
+      message: "Google authentication failed."
+    });
   }
 });
 
