@@ -1,28 +1,41 @@
 const mongoose = require("mongoose");
 
-const ProgressSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true
-  },
+/* ==========================================
+   PROGRESS SCHEMA — WOFA AI
+   Stores progress using STRING lessonId
+   ========================================== */
+const ProgressSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
 
-  lesson: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Lesson",
-    required: true
-  },
+    courseId: {
+      type: String,
+      default: null
+    },
 
-  status: {
-    type: String,
-    enum: ["started", "completed"],
-    default: "started"
-  },
+    lessonId: {
+      type: String,
+      required: true
+    },
 
-  updatedAt: {
-    type: Date,
-    default: Date.now
+    status: {
+      type: String,
+      enum: ["started", "completed"],
+      default: "started"
+    }
+  },
+  {
+    timestamps: true
   }
-});
+);
+
+/* =========================
+   INDEXES
+   ========================= */
+ProgressSchema.index({ user: 1, lessonId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Progress", ProgressSchema);

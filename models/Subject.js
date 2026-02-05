@@ -1,34 +1,39 @@
 const mongoose = require("mongoose");
 
+/* ==========================================
+   SUBJECT SCHEMA — WOFA AI
+   ========================================== */
 const SubjectSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true,
+      required: [true, "Subject name is required"],
       unique: true,
       trim: true,
-      index: true
+      minlength: 2,
+      maxlength: 120
     },
 
-    // URL-friendly identifier (useful for frontend routing later)
     slug: {
       type: String,
+      required: true,
       unique: true,
-      lowercase: true
+      lowercase: true,
+      trim: true
     },
 
     description: {
       type: String,
-      trim: true
+      trim: true,
+      default: "",
+      maxlength: 500
     },
 
-    // Optional difficulty range for the subject
     levels: {
       type: [String],
       default: ["Beginner", "Intermediate", "Advanced"]
     },
 
-    // Allow AI teaching for this subject
     aiEnabled: {
       type: Boolean,
       default: true
