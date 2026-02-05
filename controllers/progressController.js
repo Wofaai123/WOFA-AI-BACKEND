@@ -1,46 +1,70 @@
 const Progress = require("../models/Progress");
 
-/* =========================
+/* ==========================================
    SAVE / UPDATE PROGRESS
-   ========================= */
+   POST /api/progress
+   ========================================== */
 exports.saveProgress = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { lessonId, status = "completed" } = req.body;
+    const { courseId, lessonId, status = "completed" } = req.body;
 
     if (!lessonId) {
-      return res.status(400).json({ message: "Lesson ID required" });
+      return res.status(400).json({
+        success: false,
+        message: "lessonId is required"
+      });
     }
 
     const progress = await Progress.findOneAndUpdate(
-      { user: userId, lesson: lessonId },
-      { status, updatedAt: new Date() },
+      { user: userId, lessonId: lessonId },
+      {
+        user: userId,
+        courseId: courseId || null,
+        lessonId: lessonId,
+        status: status,
+        updatedAt: new Date()
+      },
       { upsert: true, new: true }
     );
 
-    res.json({
-      message: "Lesson marked complete",
+    return res.status(200).json({
+      success: true,
+      message: "Progress saved successfully.",
       progress
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to save progress" });
+    console.error("🔥 Progress save error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save progress."
+    });
   }
 };
 
-/* =========================
+/* ==========================================
    GET USER PROGRESS
-   ========================= */
+   GET /api/progress
+   ========================================== */
 exports.getProgress = async (req, res) => {
   try {
-    const progress = await Progress.find({ user: req.user.id })
-      .populate("lesson", "title");
+    const userId = req.user.id;
 
-    res.json(progress);
+    const progress = await Progress.find({ user: userId }).sort({ updatedAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      progress
+    });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch progress" });
+    console.error("🔥 Progress fetch error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch progress."
+    });
   }
 };
