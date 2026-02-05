@@ -1,24 +1,36 @@
-// config/db.js
 const mongoose = require("mongoose");
 
+/* ==========================================
+   CONNECT MONGODB — WOFA AI
+   ========================================== */
 const connectDB = async () => {
   try {
-    if (!process.env.MONGO_URI) {
-      throw new Error("MONGO_URI is not defined in environment variables");
+    const mongoUri = process.env.MONGO_URI;
+
+    if (!mongoUri) {
+      throw new Error("❌ MONGO_URI is missing in .env file");
     }
 
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,   // Fail fast on Render
-      maxPoolSize: 10,                  // Reasonable connection pool
-      socketTimeoutMS: 45000,           // Prevent long hangs
+    // Prevent multiple connections
+    if (mongoose.connection.readyState === 1) {
+      console.log("⚠️ MongoDB already connected.");
+      return;
+    }
+
+    const conn = await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10
     });
 
-    console.log(`✅ MongoDB connected successfully`);
+    console.log("✅ MongoDB Connected Successfully");
     console.log(`📦 Database: ${conn.connection.name}`);
     console.log(`🌍 Host: ${conn.connection.host}`);
 
+    return conn;
+
   } catch (error) {
-    console.error("❌ MongoDB connection failed:", error); // full error object
+    console.error("❌ MongoDB Connection Failed:", error.message);
     process.exit(1);
   }
 };
