@@ -1,19 +1,40 @@
 const jwt = require("jsonwebtoken");
 
-module.exports = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "No token provided" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
+/* ==========================================
+   AUTH MIDDLEWARE (JWT PROTECTION)
+   ========================================== */
+module.exports = function authMiddleware(req, res, next) {
   try {
+    const authHeader = req.headers.authorization;
+
+    // Must be "Bearer TOKEN"
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Access denied. No token provided."
+      });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Access denied. Token missing."
+      });
+    }
+
+    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id }
+
+    // Attach decoded payload (ex: { id: userId })
+    req.user = decoded;
+
     next();
-  } catch {
-    res.status(401).json({ message: "Invalid token" });
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token. Please login again."
+    });
   }
 };
