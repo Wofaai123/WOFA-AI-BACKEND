@@ -1,42 +1,37 @@
-// server.js - WOFA AI Backend (Production-ready 2026 version)
+// server.js - WOFA AI Backend (OpenAI Backbone Version - Feb 2026)
+// MongoDB Removed
+// Authentication Removed
+// Backend only serves OpenAI requests securely
 
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
 const morgan = require("morgan");
-const mongoose = require("mongoose");
 require("dotenv").config();
 
-const connectDB = require("./config/db");
+const { generateAIResponse } = require("./openaiHelper");
 
 const app = express();
 
 /* ========================
    GLOBAL MIDDLEWARE
    ======================== */
-
-// Security headers
 app.use(helmet());
-
-// Compression (faster responses)
 app.use(compression());
 
-// CORS Configuration
 app.use(
   cors({
-    origin: "*", // Change later to your Netlify frontend domain
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: "*",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
     credentials: false
   })
 );
 
-// Body parsers
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
-// Logging
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 /* ========================
@@ -47,7 +42,6 @@ app.get("/", (req, res) => {
     success: true,
     status: "OK",
     service: "WOFA AI Backend",
-    database: mongoose.connection.readyState === 1 ? "connected" : "not connected",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development"
@@ -55,14 +49,75 @@ app.get("/", (req, res) => {
 });
 
 /* ========================
-   API ROUTES
+   AI CHAT ENDPOINT
    ======================== */
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/chat", require("./routes/chat"));
-app.use("/api/subjects", require("./routes/subjects"));
-app.use("/api/courses", require("./routes/courses"));
-app.use("/api/lessons", require("./routes/lessons"));
-app.use("/api/progress", require("./routes/progress"));
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { question, course, lesson, image } = req.body;
+
+    if (!question || question.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Question is required."
+      });
+    }
+
+    const answer = await generateAIResponse({
+      question,
+      course,
+      lesson,
+      image
+    });
+
+    return res.status(200).json({
+      success: true,
+      answer
+    });
+
+  } catch (err) {
+    console.error("❌ /api/chat error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "AI request failed. Try again later."
+    });
+  }
+});
+
+/* ========================
+   RECTIFICATION ENDPOINT
+   ======================== */
+app.post("/api/rectify", async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Text is required."
+      });
+    }
+
+    const corrected = await generateAIResponse({
+      question: `Please correct and improve this text:\n\n${text}`,
+      course: "Rectification Mode",
+      lesson: "Grammar Correction"
+    });
+
+    return res.status(200).json({
+      success: true,
+      corrected
+    });
+
+  } catch (err) {
+    console.error("❌ /api/rectify error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Rectification failed. Try again later."
+    });
+  }
+});
 
 /* ========================
    404 HANDLER
@@ -91,36 +146,6 @@ app.use((err, req, res, next) => {
    ======================== */
 const PORT = process.env.PORT || 5000;
 
-const startServer = async () => {
-  try {
-    await connectDB();
-
-    app.listen(PORT, () => {
-      console.log(`🚀 WOFA AI backend running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error("❌ Failed to start server:", err.message);
-    process.exit(1);
-  }
-};
-
-startServer();
-
-/* ========================
-   GRACEFUL SHUTDOWN (Render)
-   ======================== */
-const shutdown = async () => {
-  console.log("🛑 Shutdown signal received...");
-
-  try {
-    await mongoose.connection.close();
-    console.log("✅ MongoDB connection closed.");
-    process.exit(0);
-  } catch (err) {
-    console.error("❌ Error during shutdown:", err.message);
-    process.exit(1);
-  }
-};
-
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+app.listen(PORT, () => {
+  console.log(`🚀 WOFA AI backend running on port ${PORT}`);
+});
