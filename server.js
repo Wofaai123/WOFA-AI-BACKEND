@@ -1,7 +1,7 @@
-// server.js - WOFA AI Backend (OpenAI Backbone Version - Feb 2026)
+// server.js - WOFA AI Backend (GROQ Backbone Version - Feb 2026)
 // MongoDB Removed
 // Authentication Removed
-// Backend only serves OpenAI requests securely
+// Backend serves Groq AI requests securely
 
 const express = require("express");
 const cors = require("cors");
@@ -10,9 +10,17 @@ const compression = require("compression");
 const morgan = require("morgan");
 require("dotenv").config();
 
-const { generateAIResponse } = require("./openaiHelper");
+const { generateAIResponse } = require("./groqHelper");
 
 const app = express();
+
+/* ========================
+   CHECK ENV VARIABLES
+   ======================== */
+if (!process.env.GROQ_API_KEY) {
+  console.error("❌ ERROR: GROQ_API_KEY is missing in .env file");
+  process.exit(1);
+}
 
 /* ========================
    GLOBAL MIDDLEWARE
@@ -23,14 +31,14 @@ app.use(compression());
 app.use(
   cors({
     origin: "*",
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
     credentials: false
   })
 );
 
-app.use(express.json({ limit: "15mb" }));
-app.use(express.urlencoded({ extended: true, limit: "15mb" }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
@@ -41,7 +49,7 @@ app.get("/", (req, res) => {
   return res.status(200).json({
     success: true,
     status: "OK",
-    service: "WOFA AI Backend",
+    service: "WOFA AI Backend (Groq)",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development"
@@ -53,7 +61,7 @@ app.get("/", (req, res) => {
    ======================== */
 app.post("/api/chat", async (req, res) => {
   try {
-    const { question, course, lesson, image } = req.body;
+    const { question, course, lesson } = req.body;
 
     if (!question || question.trim().length === 0) {
       return res.status(400).json({
@@ -65,8 +73,7 @@ app.post("/api/chat", async (req, res) => {
     const answer = await generateAIResponse({
       question,
       course,
-      lesson,
-      image
+      lesson
     });
 
     return res.status(200).json({
@@ -75,11 +82,11 @@ app.post("/api/chat", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ /api/chat error:", err);
+    console.error("❌ /api/chat error:", err?.message || err);
 
     return res.status(500).json({
       success: false,
-      message: "AI request failed. Try again later."
+      message: "AI request failed. Check backend logs."
     });
   }
 });
@@ -99,7 +106,7 @@ app.post("/api/rectify", async (req, res) => {
     }
 
     const corrected = await generateAIResponse({
-      question: `Please correct and improve this text:\n\n${text}`,
+      question: `Correct and improve this text. Fix grammar, spelling, punctuation, and clarity. Return only the corrected version:\n\n${text}`,
       course: "Rectification Mode",
       lesson: "Grammar Correction"
     });
@@ -110,11 +117,11 @@ app.post("/api/rectify", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ /api/rectify error:", err);
+    console.error("❌ /api/rectify error:", err?.message || err);
 
     return res.status(500).json({
       success: false,
-      message: "Rectification failed. Try again later."
+      message: "Rectification failed. Check backend logs."
     });
   }
 });
@@ -126,18 +133,6 @@ app.use((req, res) => {
   return res.status(404).json({
     success: false,
     message: "Route not found"
-  });
-});
-
-/* ========================
-   GLOBAL ERROR HANDLER
-   ======================== */
-app.use((err, req, res, next) => {
-  console.error("🔥 Unhandled error:", err);
-
-  return res.status(500).json({
-    success: false,
-    message: "Internal server error"
   });
 });
 
