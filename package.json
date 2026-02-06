@@ -2,7 +2,7 @@
   "name": "wofa-ai-backend",
   "version": "2.0.0",
   "private": true,
-  "description": "WOFA AI backend server (Express + OpenAI only, no MongoDB)",
+  "description": "WOFA AI backend server (Express + Groq AI only, no MongoDB)",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
@@ -22,8 +22,7 @@
     "express": "^4.21.1",
     "groq-sdk": "^0.37.0",
     "helmet": "^8.0.0",
-    "morgan": "^1.10.0",
-    "openai": "^4.80.0"
+    "morgan": "^1.10.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
