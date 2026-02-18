@@ -1,5 +1,6 @@
 // server.js - WOFA MASTER BACKEND (MULTI FRONTEND INTELLIGENCE ENGINE)
 // Feb 2026 - One Backend Serving WOFA AI, AI Kasa, PreachMe, and Future Apps
+// Render + Vercel + Netlify Compatible
 
 const express = require("express");
 const cors = require("cors");
@@ -17,58 +18,72 @@ const app = express();
    ENV CHECK
    ========================================================== */
 if (!process.env.GROQ_API_KEY) {
-  console.error("❌ ERROR: GROQ_API_KEY missing in .env file");
+  console.error("❌ ERROR: GROQ_API_KEY missing in Render Environment Variables");
   process.exit(1);
 }
 
 /* ==========================================================
-   TRUST PROXY (IMPORTANT FOR RENDER)
+   TRUST PROXY (IMPORTANT FOR RENDER + RATE LIMIT)
    ========================================================== */
 app.set("trust proxy", 1);
 
 /* ==========================================================
-   FRONTEND DOMAINS (10 FRONTENDS READY)
-   Add your 10 frontends here.
-   Future apps can be added easily.
+   CORS CONFIG (UNLIMITED FRONTEND SUPPORT)
+   - Supports Netlify + Vercel deployments automatically
+   - Supports localhost testing
+   - Prevents unknown origins from abusing API
    ========================================================== */
-const allowedOrigins = [
-  // WOFA AI
-  "https://wofa-ai.vercel.app",
-
-  // AI KASA
-  "https://ai-kasa.vercel.app",
-
-  // PREACHME
-  "https://preachme.vercel.app",
-
-  // OTHER APPS (future)
-  "https://app1.vercel.app",
-  "https://app2.vercel.app",
-  "https://app3.vercel.app",
-  "https://app4.vercel.app",
-  "https://app5.vercel.app",
-  "https://app6.vercel.app",
-  "https://app7.vercel.app",
-
-  // Localhost
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "http://localhost:5500"
+const allowedDomains = [
+  "vercel.app",
+  "netlify.app",
+  "onrender.com"
 ];
 
-/* ==========================================================
-   CORS CONFIG (MULTI FRONTEND SAFE)
-   ========================================================== */
+// Localhost development ports
+const allowedExactOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000"
+];
+
+// Optional: Add your custom domains here later
+const allowedCustomDomains = [
+  // "https://wofaai.com",
+  // "https://aikasa.com",
+  // "https://preachme.com"
+];
+
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    // Allow exact localhost/custom origins
+    if (
+      allowedExactOrigins.includes(origin) ||
+      allowedCustomDomains.includes(origin)
+    ) {
       return callback(null, true);
     }
 
-    console.log("⛔ Blocked by CORS:", origin);
-    return callback(new Error("CORS blocked: Origin not allowed"), false);
+    // Allow all Vercel/Netlify subdomains (future apps safe)
+    try {
+      const url = new URL(origin);
+      const hostname = url.hostname;
+
+      if (allowedDomains.some(domain => hostname.endsWith(domain))) {
+        return callback(null, true);
+      }
+
+      console.log("⛔ Blocked by CORS:", origin);
+      return callback(new Error("CORS blocked: Origin not allowed"), false);
+
+    } catch (err) {
+      console.log("⛔ Blocked invalid origin:", origin);
+      return callback(new Error("CORS blocked: Invalid origin"), false);
+    }
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
@@ -89,11 +104,11 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 /* ==========================================================
-   RATE LIMIT (PREVENT SPAM ACROSS ALL APPS)
+   RATE LIMIT (ANTI-SPAM FOR ALL FRONTENDS)
    ========================================================== */
 const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 80,
+  windowMs: 60 * 1000, // 1 minute
+  max: 120, // max requests per minute
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -106,7 +121,7 @@ app.use("/api", limiter);
 
 /* ==========================================================
    HELPER: SAFE JSON PARSER
-   (Used for preachme structured output)
+   Used for PreachMe structured JSON sermon generation
    ========================================================== */
 function safeJsonParse(text) {
   try {
@@ -114,6 +129,7 @@ function safeJsonParse(text) {
   } catch (err) {
     const first = text.indexOf("{");
     const last = text.lastIndexOf("}");
+
     if (first === -1 || last === -1) return null;
 
     try {
@@ -134,7 +150,7 @@ app.get("/", (req, res) => {
     service: "WOFA MASTER BACKEND (WOFA AI + AI KASA + PREACHME)",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    allowedFrontends: allowedOrigins.length
+    environment: process.env.NODE_ENV || "development"
   });
 });
 
@@ -148,10 +164,9 @@ app.get("/api/health", (req, res) => {
 });
 
 /* ==========================================================
-   MAIN CHAT ENDPOINT (WOFA AI + AI KASA)
-   Frontends must send:
-   { question, course, lesson, platform }
-   platform = "wofa-ai" | "ai-kasa" | "general"
+   MAIN CHAT ENDPOINT
+   - Used by WOFA AI + AI KASA + General Apps
+   Body: { question, course, lesson, platform }
    ========================================================== */
 app.post("/api/chat", async (req, res) => {
   try {
@@ -171,6 +186,13 @@ app.post("/api/chat", async (req, res) => {
       platform
     });
 
+    if (!answer || answer.trim().length === 0) {
+      return res.status(500).json({
+        success: false,
+        message: "AI returned empty response. Try again."
+      });
+    }
+
     return res.status(200).json({
       success: true,
       platform: platform || "general",
@@ -181,13 +203,14 @@ app.post("/api/chat", async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "AI request failed. Check backend logs."
+      message: err?.message || "AI request failed. Check backend logs."
     });
   }
 });
 
 /* ==========================================================
    RECTIFICATION ENDPOINT
+   Body: { text, platform }
    ========================================================== */
 app.post("/api/rectify", async (req, res) => {
   try {
@@ -216,15 +239,14 @@ app.post("/api/rectify", async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Rectification failed. Check backend logs."
+      message: err?.message || "Rectification failed. Check backend logs."
     });
   }
 });
 
 /* ==========================================================
    PREACHME SERMON ENDPOINT
-   Frontend sends:
-   { topic, mode, previousText, platform:"preachme" }
+   Body: { topic, mode, previousText, platform:"preachme" }
    ========================================================== */
 app.post("/api/preach", async (req, res) => {
   try {
@@ -240,7 +262,9 @@ app.post("/api/preach", async (req, res) => {
     const cleanTopic = topic.trim();
     const finalMode = mode || "new";
 
-    // CONTINUE MODE
+    /* ========================
+       CONTINUE MODE
+       ======================== */
     if (finalMode === "continue") {
       if (!previousText || previousText.trim().length < 50) {
         return res.status(400).json({
@@ -274,7 +298,9 @@ Return ONLY the continuation preaching script.
       });
     }
 
-    // NEW SERMON MODE (JSON STRUCTURED)
+    /* ========================
+       NEW SERMON MODE
+       ======================== */
     const sermonJsonText = await generateAIResponse({
       question: `
 Generate a complete prophetic sermon on:
@@ -336,7 +362,7 @@ Rules:
 
     return res.status(500).json({
       success: false,
-      message: "Sermon generation failed. Check backend logs."
+      message: err?.message || "Sermon generation failed. Check backend logs."
     });
   }
 });
@@ -370,5 +396,5 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`🚀 WOFA MASTER backend running on port ${PORT}`);
-  console.log(`🌍 Allowed Frontends: ${allowedOrigins.length}`);
+  console.log("🌍 CORS: Vercel + Netlify + Localhost supported");
 });
