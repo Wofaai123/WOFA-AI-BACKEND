@@ -2,18 +2,19 @@
   "name": "wofa-ai-backend",
   "version": "2.0.0",
   "private": true,
-  "description": "WOFA AI backend server (Express + Groq AI only, no MongoDB)",
+  "description": "WOFA Master AI Backend Server (WOFA AI + AI Kasa + PreachMe) using Express + Groq AI",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "build": "echo \"Build complete\"",
     "test": "echo \"No tests yet\""
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.x"
   },
-  "author": "Prophet Joseph",
+  "author": "Prophet Joseph Adarkwah",
   "license": "ISC",
   "dependencies": {
     "compression": "^1.7.5",
