@@ -1,5 +1,5 @@
-// groqHelper.js - WOFA MASTER GROQ HELPER (MULTI-FRONTEND SMART VERSION)
-// Feb 2026 - Supports WOFA AI, AI Kasa, PreachMe, Rectification + Future Apps
+// groqHelper.js - WOFA MASTER GROQ HELPER (PLATFORM INTELLIGENCE VERSION)
+// Feb 2026 - Supports WOFA AI, AI Kasa (Minors Safe), PreachMe, Rectify, Developer, Future Apps
 
 require("dotenv").config();
 const Groq = require("groq-sdk");
@@ -20,30 +20,44 @@ const groq = new Groq({
    GLOBAL CONFIG
    ========================================================== */
 const DEFAULT_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_TIMEOUT = 90000;
 
 /* ==========================================================
    TIMEOUT WRAPPER (PREVENT BACKEND FREEZE)
    ========================================================== */
-function withTimeout(promise, ms = 60000) {
+function withTimeout(promise, ms = DEFAULT_TIMEOUT) {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Groq request timeout")), ms)
+      setTimeout(() => reject(new Error("Groq request timeout. Try again.")), ms)
     )
   ]);
 }
 
 /* ==========================================================
-   AUTO DETECT REQUEST TYPE
+   PLATFORM DETECTION
    ========================================================== */
-function detectMode(course = "", lesson = "", question = "") {
-  const text = `${course} ${lesson} ${question}`.toLowerCase();
+function detectPlatform(platform = "") {
+  const p = (platform || "").toLowerCase().trim();
+
+  if (p.includes("preach")) return "preachme";
+  if (p.includes("kasa")) return "ai-kasa";
+  if (p.includes("wofa")) return "wofa-ai";
+
+  return "general";
+}
+
+/* ==========================================================
+   AUTO MODE DETECTION (SECONDARY)
+   ========================================================== */
+function detectMode(question = "") {
+  const text = (question || "").toLowerCase();
 
   if (
     text.includes("sermon") ||
     text.includes("preach") ||
-    text.includes("prophetic") ||
     text.includes("deliverance") ||
+    text.includes("prophetic") ||
     text.includes("altar call")
   ) {
     return "preachme";
@@ -67,7 +81,8 @@ function detectMode(course = "", lesson = "", question = "") {
     text.includes("react") ||
     text.includes("node") ||
     text.includes("backend") ||
-    text.includes("api")
+    text.includes("api") ||
+    text.includes("error")
   ) {
     return "developer";
   }
@@ -76,66 +91,105 @@ function detectMode(course = "", lesson = "", question = "") {
 }
 
 /* ==========================================================
-   SYSTEM PROMPTS PER MODE
+   SYSTEM PROMPT BUILDER (BASED ON PLATFORM)
    ========================================================== */
-function buildSystemPrompt(mode) {
-  if (mode === "preachme") {
+function buildSystemPrompt(platformMode, mode) {
+  // PREACHME (Prophetic engine)
+  if (platformMode === "preachme" || mode === "preachme") {
     return `
-You are PREACHME, a Pentecostal prophetic preaching engine.
+You are PREACHME, a powerful Pentecostal prophetic preaching and Bible teaching engine.
 
-Rules:
-- Be fire-filled and scriptural.
-- Use Bible verses and authority.
-- Be bold, prophetic, powerful.
-- Use declarations like: "I decree", "I declare", "I prophesy".
-- End with altar call and salvation prayer.
-- Return ONLY what the user requests.
+STRICT RULES:
+- Write like a real anointed preacher.
+- Use Bible scriptures and spiritual authority.
+- Use strong prophetic declarations ("I decree", "I declare", "I prophesy").
+- Include warfare prayers and deliverance commands.
+- Be intense, fiery, revival-focused.
+- End with altar call + salvation prayer.
+- Do not act like a school teacher.
 `;
   }
 
+  // AI KASA (Minors + Basic education)
+  if (platformMode === "ai-kasa") {
+    return `
+You are AI KASA, a safe and friendly learning assistant for children and minors.
+
+STRICT RULES:
+- Use simple English.
+- Teach like a kind teacher for kids.
+- Give short explanations and examples.
+- Do NOT use adult content.
+- Do NOT use explicit sexual content.
+- Do NOT promote violence.
+- If question is inappropriate, refuse politely and redirect to safe learning.
+- Encourage good morals, respect, and positive behavior.
+- Keep answers short, clear, and easy.
+`;
+  }
+
+  // WOFA AI (Academic + University standard)
+  if (platformMode === "wofa-ai") {
+    return `
+You are WOFA AI, a high-level academic educational assistant.
+
+STRICT RULES:
+- Teach at university / professional level.
+- Provide structured answers with headings.
+- Use definitions, frameworks, examples, and references.
+- Use critical thinking and deep explanations.
+- If theology/spirituality is asked, respond respectfully with scripture and scholarly balance.
+- If user requests code or technical solutions, respond professionally.
+`;
+  }
+
+  // RECTIFICATION MODE
   if (mode === "rectify") {
     return `
-You are WOFA AI Rectification Mode.
+You are WOFA AI Rectification Engine.
 
-Rules:
-- Correct grammar, spelling, punctuation, clarity.
-- Rewrite into clean professional English.
-- Keep the same meaning.
-- Return only the corrected text.
+RULES:
+- Fix grammar, punctuation, spelling, and clarity.
+- Rewrite professionally.
+- Keep original meaning.
+- Return ONLY the corrected version.
 `;
   }
 
+  // DEVELOPER MODE
   if (mode === "developer") {
     return `
 You are WOFA AI Developer Assistant.
 
-Rules:
-- Solve programming issues step-by-step.
-- Give working code.
-- Be precise and professional.
-- Do not hallucinate functions.
-- If code is provided, rewrite fully with fixes.
+RULES:
+- Debug code professionally.
+- Explain the bug clearly.
+- Rewrite full working code when necessary.
+- Do not remove buttons or change IDs unless asked.
+- Provide production-ready fixes.
 `;
   }
 
+  // GENERAL EDUCATION
   return `
-You are WOFA AI, a professional African-focused educational assistant and tutor.
+You are WOFA AI General Assistant.
 
-Rules:
-- Teach clearly step-by-step like a real teacher.
-- Use structured headings.
-- Give examples and simple explanations.
-- Be accurate and helpful.
-- If user asks theology/spiritual topics, respond respectfully.
+RULES:
+- Explain clearly.
+- Be accurate.
+- Use structured responses.
+- Adapt difficulty to user request.
 `;
 }
 
 /* ==========================================================
-   TOKEN CONTROL PER MODE
+   TOKEN CONTROL PER PLATFORM
    ========================================================== */
-function getMaxTokens(mode) {
-  if (mode === "preachme") return 8192;
-  if (mode === "developer") return 2048;
+function getMaxTokens(platformMode, mode) {
+  if (platformMode === "preachme" || mode === "preachme") return 8192;
+  if (platformMode === "wofa-ai") return 2500;
+  if (platformMode === "ai-kasa") return 900;
+  if (mode === "developer") return 2000;
   if (mode === "rectify") return 1200;
   return 1500;
 }
@@ -143,7 +197,12 @@ function getMaxTokens(mode) {
 /* ==========================================================
    MAIN AI RESPONSE GENERATOR
    ========================================================== */
-async function generateAIResponse({ question, course, lesson }) {
+async function generateAIResponse({
+  question,
+  course,
+  lesson,
+  platform
+}) {
   try {
     const safeQuestion = (question || "").trim();
     const safeCourse = (course || "").trim();
@@ -153,13 +212,16 @@ async function generateAIResponse({ question, course, lesson }) {
       return "⚠️ No question provided.";
     }
 
-    const mode = detectMode(safeCourse, safeLesson, safeQuestion);
-    const systemPrompt = buildSystemPrompt(mode);
-    const maxTokens = getMaxTokens(mode);
+    const platformMode = detectPlatform(platform);
+    const mode = detectMode(safeQuestion);
+
+    const systemPrompt = buildSystemPrompt(platformMode, mode);
+    const maxTokens = getMaxTokens(platformMode, mode);
 
     let contextText = "";
-    if (safeCourse) contextText += `Course Selected: ${safeCourse}\n`;
-    if (safeLesson) contextText += `Lesson Selected: ${safeLesson}\n`;
+    if (safeCourse) contextText += `Course: ${safeCourse}\n`;
+    if (safeLesson) contextText += `Lesson: ${safeLesson}\n`;
+    if (platformMode) contextText += `Platform: ${platformMode}\n`;
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -169,15 +231,14 @@ async function generateAIResponse({ question, course, lesson }) {
       }
     ];
 
-    // MAIN GROQ REQUEST
     const requestPromise = groq.chat.completions.create({
       model: DEFAULT_MODEL,
       messages,
-      temperature: 0.7,
+      temperature: platformMode === "ai-kasa" ? 0.5 : 0.7,
       max_tokens: maxTokens
     });
 
-    const completion = await withTimeout(requestPromise, 90000);
+    const completion = await withTimeout(requestPromise, DEFAULT_TIMEOUT);
 
     const content = completion.choices?.[0]?.message?.content;
 
@@ -188,8 +249,6 @@ async function generateAIResponse({ question, course, lesson }) {
     return content;
   } catch (err) {
     console.error("❌ GROQ HELPER ERROR:", err?.message || err);
-
-    // Safe fallback response (prevents frontend freezing)
     return `⚠️ AI request failed: ${err.message || "Unknown error"}`;
   }
 }
